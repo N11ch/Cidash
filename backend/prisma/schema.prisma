@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  CAPTAIN
+}
+
+enum ActivityType {
+  RUNNING 
+  CYCLING
+}
+
+enum QuestStatus {
+  PENDING
+  ACCEPTED
+  COMPLETED
+  FAILED
+  SHIELDED
+}
+
+enum PointTxType {
+  QUEST_WIN
+  QUEST_PENALTY
+  PURCHASE_SHIELD
+}
+
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  passwordHash   String
+  name           String
+  rankPoints     Int            @default(100)
+  shieldTickets  Int            @default(0)
+  createdAt      DateTime       @default(now())
+
+  memberships    SquadMember[]
+  activities     Activity[]
+  questsCreated  Quest[]        @relation("CreatedQuests")
+  questsReceived Quest[]        @relation("ReceivedQuests")
+  pointLedgers   PointLedger[]
+}
+
+model Squad {
+  id          String         @id @default(uuid())
+  name        String
+  inviteCode  String         @unique
+  isPremium   Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+
+  members     SquadMember[]
+  quests      Quest[]
+}
+
+model SquadMember {
+  id        String   @id @default(uuid())
+  squadId   String
+  userId    String
+  role      Role     @default(MEMBER)
+  joinedAt  DateTime @default(now())
+
+  squad     Squad    @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([squadId, userId])
+}
+
+model Activity {
+  id              String       @id @default(uuid())
+  userId          String
+  type            ActivityType
+  distanceMeters  Float
+  durationSeconds Int
+  averagePace     Float
+  routeGeoJson    Json
+  startedAt       DateTime
+  endedAt         DateTime
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questMatches    Quest[]
+}
+
+model Quest {
+  id             String       @id @default(uuid())
+  squadId        String
+  creatorId      String
+  targetUserId   String
+  activityType   ActivityType
+  targetDistance Float
+  targetMaxPace  Float?
+  stakesPoints   Int
+  rewardTitle    String?
+  deadline       DateTime
+  status         QuestStatus  @default(PENDING)
+  activityId     String?
+
+  squad          Squad        @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  creator        User         @relation("CreatedQuests", fields: [creatorId], references: [id])
+  targetUser     User         @relation("ReceivedQuests", fields: [targetUserId], references: [id])
+  activity       Activity?    @relation(fields: [activityId], references: [id])
+}
+
+model PointLedger {
+  id        String      @id @default(uuid())
+  userId    String
+  amount    Int
+  type      PointTxType
+  reference String?
+  createdAt DateTime    @default(now())
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
